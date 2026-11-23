@@ -18,7 +18,7 @@ def load_models(args):
     lora_path = args.lora_path
     pipe = trace_load(FluxPipeline.from_pretrained, "black-forest-labs/FLUX.1-dev", torch_dtype=torch.bfloat16)
     pipe.to("cuda")
-    trace_load(pipe.load_lora_weights, lora_path) # change this.
+    trace_load(pipe.load_lora_weights, lora_path, weight_name=os.path.basename(lora_path))  # Required by Diffusers offline mode, even for a local file.
     pipe.enable_model_cpu_offload()  # save some VRAM by offloading the model to CPU
 
 

@@ -122,7 +122,7 @@ def load_models(args):
 
     processor = trace_load(AutoProcessor.from_pretrained, model_id)
     pipe = trace_load(FluxFillPipeline.from_pretrained, "black-forest-labs/FLUX.1-Fill-dev", torch_dtype=torch.bfloat16)
-    trace_load(pipe.load_lora_weights, args.lora_path) # change this.
+    trace_load(pipe.load_lora_weights, args.lora_path, weight_name=os.path.basename(args.lora_path))  # Explicit local file for offline Diffusers.
     pipe.enable_model_cpu_offload()  # save some VRAM by offloading the model to CPU
 
     lama_model = trace_load(LamaInpainting, )

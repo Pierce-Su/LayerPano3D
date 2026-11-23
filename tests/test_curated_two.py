@@ -62,7 +62,9 @@ class Tests(unittest.TestCase):
             @classmethod
             def from_pretrained(cls,path,**kw): loads.append(path); return cls()
             def to(self,device): return self
-            def load_lora_weights(self,path): loads.append(path)
+            def load_lora_weights(self,path,**kw):
+                assert kw['weight_name']==os.path.basename(path)
+                loads.append(path)
             def enable_model_cpu_offload(self): pass
             def enable_vae_tiling(self): pass
             def __call__(self,prompt,**kw): calls.append((prompt,kw)); return types.SimpleNamespace(images=[Image(prompt)])

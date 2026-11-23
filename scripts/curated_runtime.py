@@ -139,7 +139,16 @@ def summarize(root):
     for e in model_loads:
         key = f"{e['stage']}|{e['loader']}|{e.get('requested_path')}|{e.get('subfolder')}"
         counts[key] = counts.get(key, 0) + 1
-    report = dict(events=events, timed_operations=rows, actual_successful_load_counts=counts,
+    ready_path = root / 'READY.json'
+    ready = json.loads(ready_path.read_text()) if ready_path.exists() else None
+    attempts = [e for e in events if e['kind'] == 'driver_attempt_start']
+    ready_wait = (dt.datetime.fromisoformat(attempts[0]['utc']) - dt.datetime.fromisoformat(ready['created_utc'])).total_seconds() if ready and attempts else None
+    preparation_path = root / 'evidence/preparation.json'
+    report = dict(cpu_readiness_preparation=json.loads(preparation_path.read_text()) if preparation_path.exists() else None,
+                  ready_to_first_driver_attempt_wait_seconds=ready_wait,
+                  ready_to_first_model_load_wait_seconds=(dt.datetime.fromisoformat(starts[0]['utc']) - dt.datetime.fromisoformat(ready['created_utc'])).total_seconds() if ready and starts else None,
+                  waiting_note='Readiness-to-launch delay is separate from inference; includes queue/coordination, not a measured GPU-only wait. Earlier development/preflight is in task history and preserved preflight evidence.',
+                  events=events, timed_operations=rows, actual_successful_load_counts=counts,
                   sample_processing_seconds={sid: sum(e['elapsed_seconds'] for e in successes if e.get('sample_id') == sid)
                                              for sid in sorted({e['sample_id'] for e in successes})},
                   successful_sample_stage_seconds=sum(e['elapsed_seconds'] for e in successes),

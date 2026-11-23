@@ -102,7 +102,7 @@ def camera_rotation(radius=10, angle=np.pi/9, n_poses=180):
             [np.sin(th), 0, np.cos(th)],
         ], dtype=float)
         trans_mat = trans_t(radius)
-        rot_mat = rotation_phi(phi / 180. * np.pi) 
+        rot_mat = rotation_phi(phi / 180. * np.pi)
         rot_mat = rotation_theta(theta) @ rot_mat
         return (trans_mat, rot_mat)
 
@@ -122,8 +122,8 @@ def camera_rotation(radius=10, angle=np.pi/9, n_poses=180):
     else:
         for idx in range(n_poses):
             circular_cams += [circular_pose(0, 0, radius)]
-    
-    return circular_cams 
+
+    return circular_cams
 
 def get_zigzag_trajectory(points, rotations, n_poses=30):
     currents = points[:-1]
@@ -138,143 +138,152 @@ def get_zigzag_trajectory(points, rotations, n_poses=30):
         # print(rot_poses)
         trajectory += poses
         current_R = poses[-1][1]
-    
+
     return trajectory
 
-    
+
 from argparse import ArgumentParser, Namespace
 
-parser = ArgumentParser(description="Step 0 Parameters")
-parser.add_argument("--save_dir", default="outputs", type=str)
-args = parser.parse_args()
+def build_parser():
+    parser = ArgumentParser(description="Step 0 Parameters")
+    parser.add_argument("--save_dir", default="outputs", type=str)
+    return parser
 
-save_dir = args.save_dir
-layer_names = [i for i in os.listdir(save_dir) if 'gsplat_layer' in i]
-layer_names.sort()
-layer_name = layer_names[-1].split('_')[-1].split('.')[0]
-# layer_name = 'layer0'
-if 'single' in args.save_dir:
-    layer_name = 'layer0'
+def run_sample(args):
+    global dmin, dmax
 
-rotation_theta = lambda th: np.array([
-            [np.cos(th), 0, -np.sin(th)],
-            [0, 1, 0],
-            [np.sin(th), 0, np.cos(th)],
-        ], dtype=float)
+    save_dir = args.save_dir
+    layer_names = [i for i in os.listdir(save_dir) if 'gsplat_layer' in i]
+    layer_names.sort()
+    layer_name = layer_names[-1].split('_')[-1].split('.')[0]
+    # layer_name = 'layer0'
+    if 'single' in args.save_dir:
+        layer_name = 'layer0'
 
-print('Render from {}, {}'.format(args.save_dir, layer_name))  
+    rotation_theta = lambda th: np.array([
+                [np.cos(th), 0, -np.sin(th)],
+                [0, 1, 0],
+                [np.sin(th), 0, np.cos(th)],
+            ], dtype=float)
 
-phis = [0,90,270]
-Rs = []
-Ts = []
+    print('Render from {}, {}'.format(args.save_dir, layer_name))
 
-# points = [[0,0], [-10,0], [-30,-20], [-50,20], [-80,0]] # z,x
-# angles = [0, np.pi/8, -np.pi/4, np.pi/8]
-# n_poses = [30,45,45,40]
-points = [[0,0], [-5,0], [-20,-20], [-40,-20], [-50,0],[0,0], [0,0]] # z,x
+    phis = [0,90,270]
+    Rs = []
+    Ts = []
 
-# points = [[0,0], [-5,0], [-20,-20], [-30,-20], [-35,0],[0,0], [0,0]] # z,x
-angles = [0, np.pi/8, -np.pi/4, np.pi/8, 0, np.pi/2]
-n_poses = [40,30,30,30,40,30]
+    # points = [[0,0], [-10,0], [-30,-20], [-50,20], [-80,0]] # z,x
+    # angles = [0, np.pi/8, -np.pi/4, np.pi/8]
+    # n_poses = [30,45,45,40]
+    points = [[0,0], [-5,0], [-20,-20], [-40,-20], [-50,0],[0,0], [0,0]] # z,x
 
-videopath = os.path.join(save_dir,'renders_zigzag.mp4')
-depthpath = os.path.join(save_dir, 'depths_zigzag.mp4')
-framedir = os.path.join(save_dir, 'zigzag', 'renders')
-depthdir = os.path.join(save_dir, 'zigzag', 'depth')
-os.makedirs(framedir, exist_ok=True)
-os.makedirs(depthdir, exist_ok=True)
+    # points = [[0,0], [-5,0], [-20,-20], [-30,-20], [-35,0],[0,0], [0,0]] # z,x
+    angles = [0, np.pi/8, -np.pi/4, np.pi/8, 0, np.pi/2]
+    n_poses = [40,30,30,30,40,30]
 
-
-pose_dict = {}
-starting_view_mat = np.eye(3)
-for idx, phi in enumerate(phis):
-    if phi == 90:
-        angles = [0, np.pi/8, -np.pi/4, np.pi/8, 0, np.pi]
+    videopath = os.path.join(save_dir,'renders_zigzag.mp4')
+    depthpath = os.path.join(save_dir, 'depths_zigzag.mp4')
+    framedir = os.path.join(save_dir, 'zigzag', 'renders')
+    depthdir = os.path.join(save_dir, 'zigzag', 'depth')
+    os.makedirs(framedir, exist_ok=True)
+    os.makedirs(depthdir, exist_ok=True)
 
 
-    starting_view_mat = rotation_theta(phi / 180. * np.pi)
-    zigzag_poses = get_zigzag_trajectory(points, angles, n_poses=n_poses)
-    Rs += [starting_view_mat @ pose[1] for pose in zigzag_poses]   
-    Ts += [pose[0] for pose in zigzag_poses]
-    points = [[-item[1],item[0]] for item in points]
-    
-    
-
-pose_dict['R'] = [rot.tolist() for rot in Rs]
-pose_dict['T'] = Ts # [tvec.tolist() for tvec in Ts]
+    pose_dict = {}
+    starting_view_mat = np.eye(3)
+    for idx, phi in enumerate(phis):
+        if phi == 90:
+            angles = [0, np.pi/8, -np.pi/4, np.pi/8, 0, np.pi]
 
 
-Rs = pose_dict['R']
-Ts = pose_dict['T']
-
-poses = [(Rs[i], [x * 0.3 for x in Ts[i]] ) for i in range(len(Rs))]
-# poses = [(Rs[i], Ts[i] ) for i in range(len(Rs))]
-
-views = []
-
-width = height = 1024
-fovx = math.radians(90)
-fovy = height * fovx / width
-
-# ---------------------------- Settings ---------------------------------#
-opt = GSParams()
-bg_color = [1, 1, 1] if opt.white_background else [0, 0, 0]
-background = torch.tensor(bg_color, dtype=torch.float32, device='cuda')
-
-rotation_theta = lambda th: np.array([
-            [np.cos(th), 0, -np.sin(th)],
-            [0, 1, 0],
-            [np.sin(th), 0, np.cos(th)],
-        ], dtype=float)
+        starting_view_mat = rotation_theta(phi / 180. * np.pi)
+        zigzag_poses = get_zigzag_trajectory(points, angles, n_poses=n_poses)
+        Rs += [starting_view_mat @ pose[1] for pose in zigzag_poses]
+        Ts += [pose[0] for pose in zigzag_poses]
+        points = [[-item[1],item[0]] for item in points]
 
 
-for i in range(len(poses)):
-    rot, tvec = poses[i]
-    rot = np.array(rot)
-    tvec = np.array(tvec)
-    pose = np.eye(4)
-    pose[:3,:3] = rot
-    pose[:3,3] = -tvec 
-    # pose = poses[i]
-    cur_cam = MiniCam_GS(pose, width, height, fovx, fovy)
-    views.append(cur_cam)
-    
-framelist = []
-depthlist = []
-dmin, dmax = 1e8, -1e8
 
-with torch.no_grad():
-    gaussians = LayerGaussian(opt.sh_degree)
-    gaussians.load_ply(os.path.join(save_dir, 'gsplat_{}.ply'.format(layer_name)))
-    
-    iterable_render = views
-
-    for view in tqdm(iterable_render):
-        results = render(view, gaussians, opt, background)
-        frame, depth = results['render'], results['depth']
-        framelist.append(
-            np.round(frame.permute(1,2,0).detach().cpu().numpy().clip(0,1)*255.).astype(np.uint8))
-        depth = -(depth * (depth > 0)).detach().cpu().numpy()
-        dmin_local = depth.min().item()
-        dmax_local = depth.max().item()
-        if dmin_local < dmin:
-            dmin = dmin_local
-        if dmax_local > dmax:
-            dmax = dmax_local
-        depthlist.append(depth)
+    pose_dict['R'] = [rot.tolist() for rot in Rs]
+    pose_dict['T'] = Ts # [tvec.tolist() for tvec in Ts]
 
 
-depthlist = [colorize(depth) for depth in depthlist]
+    Rs = pose_dict['R']
+    Ts = pose_dict['T']
 
-# id = 0
-# for frame in framelist:
-#     id+=1
-#     frame_pil = Image.fromarray(frame)
-#     frame_pil.save(f"{save_dir}/zigzag/renders/{id}.png")
-    
-# print('Start Writing Videos...')
-imageio.mimwrite(videopath, framelist, fps=30, quality=8)
-imageio.mimwrite(depthpath, depthlist, fps=30, quality=8)
+    poses = [(Rs[i], [x * 0.3 for x in Ts[i]] ) for i in range(len(Rs))]
+    # poses = [(Rs[i], Ts[i] ) for i in range(len(Rs))]
 
-# print('End Writing Videos...')
+    views = []
 
+    width = height = 1024
+    fovx = math.radians(90)
+    fovy = height * fovx / width
+
+    # ---------------------------- Settings ---------------------------------#
+    opt = GSParams()
+    bg_color = [1, 1, 1] if opt.white_background else [0, 0, 0]
+    background = torch.tensor(bg_color, dtype=torch.float32, device='cuda')
+
+    rotation_theta = lambda th: np.array([
+                [np.cos(th), 0, -np.sin(th)],
+                [0, 1, 0],
+                [np.sin(th), 0, np.cos(th)],
+            ], dtype=float)
+
+
+    for i in range(len(poses)):
+        rot, tvec = poses[i]
+        rot = np.array(rot)
+        tvec = np.array(tvec)
+        pose = np.eye(4)
+        pose[:3,:3] = rot
+        pose[:3,3] = -tvec
+        # pose = poses[i]
+        cur_cam = MiniCam_GS(pose, width, height, fovx, fovy)
+        views.append(cur_cam)
+
+    from scripts.curated_runtime import event
+    event("render_trajectory", frames=len(views), save_dir=args.save_dir)
+    framelist = []
+    depthlist = []
+    dmin, dmax = 1e8, -1e8
+
+    with torch.no_grad():
+        gaussians = LayerGaussian(opt.sh_degree)
+        gaussians.load_ply(os.path.join(save_dir, 'gsplat_{}.ply'.format(layer_name)))
+
+        iterable_render = views
+
+        for view in tqdm(iterable_render):
+            results = render(view, gaussians, opt, background)
+            frame, depth = results['render'], results['depth']
+            framelist.append(
+                np.round(frame.permute(1,2,0).detach().cpu().numpy().clip(0,1)*255.).astype(np.uint8))
+            depth = -(depth * (depth > 0)).detach().cpu().numpy()
+            dmin_local = depth.min().item()
+            dmax_local = depth.max().item()
+            if dmin_local < dmin:
+                dmin = dmin_local
+            if dmax_local > dmax:
+                dmax = dmax_local
+            depthlist.append(depth)
+
+
+    depthlist = [colorize(depth) for depth in depthlist]
+
+    # id = 0
+    # for frame in framelist:
+    #     id+=1
+    #     frame_pil = Image.fromarray(frame)
+    #     frame_pil.save(f"{save_dir}/zigzag/renders/{id}.png")
+
+    # print('Start Writing Videos...')
+    imageio.mimwrite(videopath, framelist, fps=30, quality=8)
+    imageio.mimwrite(depthpath, depthlist, fps=30, quality=8)
+
+    # print('End Writing Videos...')
+
+
+if __name__ == "__main__":
+    run_sample(build_parser().parse_args())

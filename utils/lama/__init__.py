@@ -1,3 +1,4 @@
+from scripts.curated_runtime import trace_load
 # https://github.com/advimman/lama
 
 import yaml
@@ -11,7 +12,7 @@ from utils.lama.saicinpainting.training.trainers import load_checkpoint
 from PIL import Image
 
 class LamaInpainting:
-    
+
 
     def __init__(self):
         self.model = None
@@ -26,7 +27,7 @@ class LamaInpainting:
         cfg = OmegaConf.create(cfg)
         cfg.training_model.predict_only = True
         cfg.visualizer.kind = 'noop'
-        self.model = load_checkpoint(cfg, os.path.abspath(modelpath), strict=False, map_location='cpu')
+        self.model = trace_load(load_checkpoint, cfg, os.path.abspath(modelpath), strict=False, map_location='cpu')
         self.model = self.model.to(self.device)
         self.model.eval()
 
@@ -38,13 +39,13 @@ class LamaInpainting:
         if self.model is None:
             self.load_model()
         self.model.to(self.device)
-        
+
         color = np.ascontiguousarray(np.array(color)).astype(np.float32) / 255.0
         mask = np.ascontiguousarray(np.array(mask)).astype(np.float32) / 255.0
-        
+
         if mask.ndim == 2:
             mask = np.expand_dims(mask, axis=-1)
-        
+
         with torch.no_grad():
             color = torch.from_numpy(color).float().to(self.device)
             mask = torch.from_numpy(mask).float().to(self.device)

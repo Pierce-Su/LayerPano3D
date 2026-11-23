@@ -1,5 +1,6 @@
+from scripts.curated_runtime import trace_load
 import os
-import sys 
+import sys
 import cv2
 import torch
 import numpy as np
@@ -15,8 +16,8 @@ import matplotlib
 import utils.pano_utils.Equirec2Perspec as E2P
 import utils.pano_utils.multi_Perspec2Equirec as m_P2E
 python_src_dir = os.path.dirname(os.path.abspath(__file__))
-print(f"Adding '{python_src_dir}' to sys.path") 
-sys.path.append(python_src_dir + "/submodules/360monodepth/code/python/src/") 
+print(f"Adding '{python_src_dir}' to sys.path")
+sys.path.append(python_src_dir + "/submodules/360monodepth/code/python/src/")
 
 from utility import depthmap_utils, pointcloud_utils
 from utils.depth_alignment import depth_alignment, Pano_depth_estimation
@@ -35,7 +36,7 @@ from diffusers import (
 
 
 class Gen_traindata:
-    def __init__(self, depth_model='DepthAnythingv2', root="outputs_traindata", save_dir=None, sr=False, layerpano_dir=None):
+    def __init__(self, depth_model='DepthAnythingv2', root="outputs_traindata", save_dir=None, sr=False, layerpano_dir=None, pipe_dp=None, seed=None):
         if save_dir is None:
             save_dir = layerpano_dir.split("/")[-1]
 
@@ -44,7 +45,8 @@ class Gen_traindata:
         self.sr = sr
         self.layerpano_dir = layerpano_dir
         self.depth_model = depth_model
-        self.pipe_dp = self.load_depth_inpainting_model()
+        self.seed = seed
+        self.pipe_dp = pipe_dp if pipe_dp is not None else self.load_depth_inpainting_model()
         self.layerexp_H, self.layerexp_W = 1024, 2048
         self.traindata_dir = f'{self.save_dir}/traindata'
         self.num_layer = self.count_layers(layerpano_dir)
@@ -57,27 +59,27 @@ class Gen_traindata:
 
 
     def count_layers(self, folder_path):
-        subfolders = [f.path for f in os.scandir(folder_path) if f.is_dir() and f.name.startswith('layer')]        
+        subfolders = [f.path for f in os.scandir(folder_path) if f.is_dir() and f.name.startswith('layer')]
         return len(subfolders)
 
     def load_depth_inpainting_model(self):
         dtype = torch.float16
         self.model_path = "checkpoints/Infusion"
-        seed = int(time.time())
+        seed = self.seed if self.seed is not None else int(time.time())
         seed_all(seed)
 
 
-        vae = AutoencoderKL.from_pretrained(self.model_path,subfolder='vae',torch_dtype=dtype)
-        scheduler = DDIMScheduler.from_pretrained(self.model_path,subfolder='scheduler',torch_dtype=dtype)
-        text_encoder = CLIPTextModel.from_pretrained(self.model_path,subfolder='text_encoder',torch_dtype=dtype)
-        tokenizer = CLIPTokenizer.from_pretrained(self.model_path,subfolder='tokenizer',torch_dtype=dtype)
-        
-        unet = UNet2DConditionModel.from_pretrained(self.model_path,subfolder="unet",
+        vae = trace_load(AutoencoderKL.from_pretrained, self.model_path,subfolder='vae',torch_dtype=dtype)
+        scheduler = trace_load(DDIMScheduler.from_pretrained, self.model_path,subfolder='scheduler',torch_dtype=dtype)
+        text_encoder = trace_load(CLIPTextModel.from_pretrained, self.model_path,subfolder='text_encoder',torch_dtype=dtype)
+        tokenizer = trace_load(CLIPTokenizer.from_pretrained, self.model_path,subfolder='tokenizer',torch_dtype=dtype)
+
+        unet = trace_load(UNet2DConditionModel.from_pretrained, self.model_path,subfolder="unet",
                                                     in_channels=13, sample_size=96,
                                                     low_cpu_mem_usage=False,
                                                     ignore_mismatched_sizes=True,
                                                     torch_dtype=dtype)
-        
+
         pipe = DepthEstimationInpaintPipeline(unet=unet,
                                        vae=vae,
                                        scheduler=scheduler,
@@ -101,20 +103,20 @@ class Gen_traindata:
         return img
 
     def generate_panodepth(self, pano_rgb):
-        ####### pano_rgb        [pano_h,pano_w,3] [0-255]        
+        ####### pano_rgb        [pano_h,pano_w,3] [0-255]
         pano_h, pano_w = pano_rgb.shape[0], pano_rgb.shape[1]
         panodepth_estimator = Pano_depth_estimation(pano_h, pano_w, self.save_dir, self.device, depth_model=self.depth_model)
-        pano_depth = panodepth_estimator.get_panodepth(pano_rgb)  #[0-1] 
+        pano_depth = panodepth_estimator.get_panodepth(pano_rgb)  #[0-1]
 
-        return pano_depth  
-                
-    def generate_traindata(self, 
+        return pano_depth
+
+    def generate_traindata(self,
                     layerpano_rgbs,        #N
                     layerpano_bagel_masks, #N
                     pano_align_masks,      #N-1
                     pano_align_masks_sharp
                     ):
-        
+
         if self.depth_model == 'zoedepth':
             max_val = 1
             scale = 1
@@ -137,18 +139,18 @@ class Gen_traindata:
         cv2.imwrite(f"{self.traindata_dir}/pano_depth_layer_rgb{N-1}.png", depth_color)
 
         pano_depths_aligned = [(layerpano_depths[-1]* max_val).astype(np.int32)]  #[0-65535]
-        
+
         #[layer0_rgb, layer1_rgb, layer2_rgb, layerInput]
-        
+
         min_val = pano_depth_base.min()
         for i in range(N-1):
             id = i+1
 
-            pano_rgb = cv2.resize(layerpano_rgbs[-(id+1)], (self.layerexp_W, self.layerexp_H)) 
+            pano_rgb = cv2.resize(layerpano_rgbs[-(id+1)], (self.layerexp_W, self.layerexp_H))
             mask = pano_align_masks[-id].astype(float)
             mask[mask>0.5]=1
             mask[mask<0.5]=0
-            pano_depth_base_i = layerpano_depths[-id] 
+            pano_depth_base_i = layerpano_depths[-id]
 
             pipe_out = self.pipe_dp(input_image=pano_rgb,
                                     depth_numpy=pano_depth_base_i,
@@ -198,7 +200,7 @@ class Gen_traindata:
 
             pointcloud_utils.depthmap2pointcloud_erp(pano_depth * scale , pano_rgb, f"{dir_now}/pcd_rgb_layer{i}.ply")
             pointcloud_utils.depthmap2pointcloud_erp(pano_depth * scale, pano_bagel_mask, f"{dir_now}/pcd_mask_layer{i}.ply")
-            
+
             frame_dir = f'{dir_now}/frames'
             os.makedirs(frame_dir, exist_ok=True)
 
@@ -219,12 +221,12 @@ class Gen_traindata:
         for i in range(n):
             th = (360/n) * i
             theta_list.append(th)
-        
+
         theta_list = theta_list + theta_list + theta_list
         phi_list = [45]*n + [0]*n + [-45]*n
 
-        equ = E2P.Equirectangular(pano) 
-        equ_depth = E2P.Equirectangular(pano_depth.astype(np.float32)) 
+        equ = E2P.Equirectangular(pano)
+        equ_depth = E2P.Equirectangular(pano_depth.astype(np.float32))
 
 
         for i in range(len(theta_list)):
@@ -250,27 +252,27 @@ class Gen_traindata:
         rgbs_aligned = []
         rgbs_aligned.append(rgbs[0])
         h, w = rgbs[0].shape[0], rgbs[0].shape[1]
-        
+
         for i in range(N):
             mask = np.array(masks[i])
             mask = mask / mask.max()
             # mask = mask.reshape((w, h, 1))
-            mask = cv2.resize(mask, (w, h)) 
+            mask = cv2.resize(mask, (w, h))
             mask = mask.reshape((h, w, 1))
-            
-            rgbs[i+1] = cv2.resize(rgbs[i+1], (w, h)) 
-            
+
+            rgbs[i+1] = cv2.resize(rgbs[i+1], (w, h))
+
             aligned = (1 - mask) * rgbs_aligned[i] + mask * rgbs[i+1]
             rgbs_aligned.append(aligned)
         return rgbs_aligned
 
     def run(self):
-        
+
         layerpano_dir =  self.layerpano_dir  #"/mnt/petrelfs/yangshuai/4drender/PanFusion/outputs_inpaint_city1"     #"/mnt/petrelfs/yangshuai/4drender/PanFusion/outputs_inpaint_nature1"
         #  now defined a pano divided into [layer0, layer1, layer2(input pano/ outermost layer)]
 
 
-        layerInput_path = f'{layerpano_dir}/rgb_sr.png' if self.sr else f'{layerpano_dir}/rgb.png'                
+        layerInput_path = f'{layerpano_dir}/rgb_sr.png' if self.sr else f'{layerpano_dir}/rgb.png'
         layerInput = self.readImg(layerInput_path)
 
         self.layer_rgb_raw_H , self.layer_rgb_raw_W = layerInput.shape[0], layerInput.shape[1]
@@ -285,9 +287,9 @@ class Gen_traindata:
 
 
         for i in range(self.num_layer):
-            
-            layer_rgb_path = f'{layerpano_dir}/layer{i}/layer{i}_inpaint_sr.png'  if self.sr else f'{layerpano_dir}/layer{i}/layer{i}_inpaint.png'         
-            layer_mask_path = f'{layerpano_dir}/layer{i}/layer{i}_mask.png'  if i==self.num_layer-1 else f'{layerpano_dir}/layer{i}/layer{i}_mask_new.png'              
+
+            layer_rgb_path = f'{layerpano_dir}/layer{i}/layer{i}_inpaint_sr.png'  if self.sr else f'{layerpano_dir}/layer{i}/layer{i}_inpaint.png'
+            layer_mask_path = f'{layerpano_dir}/layer{i}/layer{i}_mask.png'  if i==self.num_layer-1 else f'{layerpano_dir}/layer{i}/layer{i}_mask_new.png'
             layer_smoothmask_path = f'{layerpano_dir}/layer{i}/layer{i}_mask_smooth.png' if i==self.num_layer-1 else f'{layerpano_dir}/layer{i}/layer{i}_mask_smooth_new.png'
 
             mask_smooth = Image.open(layer_smoothmask_path).convert('L')
@@ -306,20 +308,20 @@ class Gen_traindata:
 
 
         N = self.num_layer + 1
-        
+
         for i in range(N):
             bagel_mask = layerpano_bagel_masks[i]
             bagel_mask= (bagel_mask * 255).astype(np.uint8)
             bagel_mask = np.repeat(bagel_mask, 3, axis=2)     #[h,w,3] [0-255] uint8
             layerpano_bagel_masks[i] = bagel_mask
 
-        
-        traindata = self.generate_traindata(layerpano_rgbs, 
+
+        traindata = self.generate_traindata(layerpano_rgbs,
                                       layerpano_bagel_masks,
                                       pano_align_masks,
                                       pano_align_masks_sharp
                                             )
-        
+
         return traindata
 
 
@@ -335,9 +337,9 @@ if __name__ == "__main__":
 
 
 
-    gen_traindata = Gen_traindata(depth_model =args.depth_model, 
+    gen_traindata = Gen_traindata(depth_model =args.depth_model,
                                   layerpano_dir = args.layerpano_dir,   #"/mnt/petrelfs/yangshuai/4drender/PanFusion/outputs_inpaint_city1"     #"/mnt/petrelfs/yangshuai/4drender/PanFusion/outputs_inpaint_nature1"
-                                  save_dir=args.save_dir, 
+                                  save_dir=args.save_dir,
                                   root = args.root,
                                   sr=args.sr)
 

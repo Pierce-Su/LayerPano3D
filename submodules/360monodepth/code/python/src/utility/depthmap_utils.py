@@ -1,3 +1,4 @@
+from scripts.curated_runtime import trace_load
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -38,7 +39,7 @@ def depth_ico_visual_save(depth_data_list_, output_path, subimage_idx_list=None)
     """save the visualized depth map array to image file with value-bar.
 
     :param dapthe_data: The depth data.
-    :type dapthe_data: numpy 
+    :type dapthe_data: numpy
     :param output_path: the absolute path of output image.
     :type output_path: str
     :param subimage_idx_list: available subimages index list.
@@ -99,7 +100,7 @@ def depth_visual_save(depth_data, output_path, overwrite=True):
     """save the visualized depth map to image file with value-bar.
 
     :param dapthe_data: The depth data.
-    :type dapthe_data: numpy 
+    :type dapthe_data: numpy
     :param output_path: the absolute path of output image.
     :type output_path: str
     """
@@ -180,7 +181,7 @@ def run_persp_monodepth(rgb_image_data_list, persp_monodepth, use_large_model=Tr
         return boosting_monodepth(rgb_image_data_list)
     if persp_monodepth == "DepthAnythingv2":
         return Depth_Anything_prediction(rgb_image_data_list)
-    
+
     if persp_monodepth == "zoedepth":
         return Zoedepth_prediction(rgb_image_data_list)
 
@@ -217,6 +218,9 @@ def Zoedepth_prediction(rgb_image_data_list):
     return disparity_map_list
 
 
+resident_depth_model = None
+
+
 def Depth_Anything_prediction(rgb_image_data_list):
     model_configs = {
         'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
@@ -226,9 +230,12 @@ def Depth_Anything_prediction(rgb_image_data_list):
     }
 
     encoder = 'vitl' # or 'vits', 'vitb', 'vitg'
-    model = DepthAnythingV2(**model_configs[encoder])
-    model.load_state_dict(torch.load('checkpoints/depth_anything_v2_vitl.pth', map_location='cpu'))
-    model = model.cuda().eval()
+    if resident_depth_model is None:
+        model = trace_load(DepthAnythingV2, **model_configs[encoder])
+        model.load_state_dict(trace_load(torch.load, 'checkpoints/depth_anything_v2_vitl.pth', map_location='cpu'))
+        model = model.cuda().eval()
+    else:
+        model = resident_depth_model
 
     disparity_map_list = []
     for index in range(0, len(rgb_image_data_list)):
@@ -236,7 +243,7 @@ def Depth_Anything_prediction(rgb_image_data_list):
 
         image = image.astype(np.uint8)
 
-        output = model.infer_image(image)    
+        output = model.infer_image(image)
         disparity_map_list.append(output)
 
         del output
@@ -662,7 +669,7 @@ def read_exr(exp_file_path):
     :param exp_file_path: file path
     :type exp_file_path: str
     :return: depth map data
-    :rtype: numpy 
+    :rtype: numpy
     """
     import array
     import OpenEXR
@@ -800,7 +807,7 @@ def depth2disparity(depth_map, baseline=1.0, focal=1.0):
     :type baseline: float, optional
     :param focal: [description], defaults to 1
     :type focal: float, optional
-    :return: disparity map data, 
+    :return: disparity map data,
     :rtype: numpy
     """
     no_zeros_index = np.where(depth_map != 0)
@@ -819,7 +826,7 @@ def disparity2depth(disparity_map,  baseline=1.0, focal=1.0):
 
     depth_map = np.full(disparity_map.shape, 0, np.float64)
     depth_map[no_zeros_index] = (baseline * focal) / disparity_map[no_zeros_index]
-    
+
     max_no_zeros = depth_map[no_zeros_index].max()
     depth_map[zeros_index] = max_no_zeros * 2
     return depth_map
@@ -881,7 +888,7 @@ def subdepthmap_tang2erp(subimage_depthmap_persp, gnomonic_coord_xy):
     """ Convert the depth map from perspective to ERP space.
 
     :param subimage_erp_depthmap: subimage's depth map of ERP space.
-    :type subimage_erp_depthmap: numpy 
+    :type subimage_erp_depthmap: numpy
     :param gnomonic_coord_xy: The tangent image's pixels gnomonic coordinate, x and y.
     :type gnomonic_coord_xy: list
     """
@@ -903,7 +910,7 @@ def depthmap_pyramid(depthmap_list, pyramid_layer_number, pyramid_downscale):
     :type pyramid_downscale: float
     :return: the pyramid for each depth map. the 1st index is pyramid level, 2nd is image index, [pyramid_idx][image_idx], 1st (index 0) level is coarsest image.
     :rtype: list
-    """    
+    """
     depthmap_number = len(depthmap_list)
     depthmap_pryamid = [[0] * depthmap_number for i in range(pyramid_layer_number)]
     for index in range(0, depthmap_number):

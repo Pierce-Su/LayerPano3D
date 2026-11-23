@@ -1,3 +1,4 @@
+from scripts.curated_runtime import trace_load
 import os
 import sys
 import cv2
@@ -42,20 +43,20 @@ def load_pasd_pipeline(args, accelerator, enable_xformers_memory_efficient_atten
         from pasd.models.pasd.controlnet import ControlNetModel
     # Load scheduler, tokenizer and models.
     if args.control_type=="grayscale":
-        scheduler = UniPCMultistepScheduler.from_pretrained("/".join(args.pasd_model_path.split("/")[:-1]), subfolder="scheduler")
+        scheduler = trace_load(UniPCMultistepScheduler.from_pretrained, "/".join(args.pasd_model_path.split("/")[:-1]), subfolder="scheduler")
     else:
-        scheduler = UniPCMultistepScheduler.from_pretrained(args.pretrained_model_path, subfolder="scheduler")
-    text_encoder = CLIPTextModel.from_pretrained(args.pretrained_model_path, subfolder="text_encoder")
-    tokenizer = CLIPTokenizer.from_pretrained(args.pretrained_model_path, subfolder="tokenizer")
-    vae = AutoencoderKL.from_pretrained(args.pretrained_model_path, subfolder="vae")
-    feature_extractor = CLIPImageProcessor.from_pretrained(f"{args.pretrained_model_path}/feature_extractor")
-    unet = UNet2DConditionModel.from_pretrained(args.pasd_model_path, subfolder="unet")
-    controlnet = ControlNetModel.from_pretrained(args.pasd_model_path, subfolder="controlnet")
+        scheduler = trace_load(UniPCMultistepScheduler.from_pretrained, args.pretrained_model_path, subfolder="scheduler")
+    text_encoder = trace_load(CLIPTextModel.from_pretrained, args.pretrained_model_path, subfolder="text_encoder")
+    tokenizer = trace_load(CLIPTokenizer.from_pretrained, args.pretrained_model_path, subfolder="tokenizer")
+    vae = trace_load(AutoencoderKL.from_pretrained, args.pretrained_model_path, subfolder="vae")
+    feature_extractor = trace_load(CLIPImageProcessor.from_pretrained, f"{args.pretrained_model_path}/feature_extractor")
+    unet = trace_load(UNet2DConditionModel.from_pretrained, args.pasd_model_path, subfolder="unet")
+    controlnet = trace_load(ControlNetModel.from_pretrained, args.pasd_model_path, subfolder="controlnet")
 
     personalized_model_root = "checkpoints/personalized_models"
     if args.use_personalized_model and args.personalized_model_path is not None:
         if os.path.isfile(f"{personalized_model_root}/{args.personalized_model_path}"):
-            unet, vae, text_encoder = load_dreambooth_lora(unet, vae, text_encoder, f"{personalized_model_root}/{args.personalized_model_path}", 
+            unet, vae, text_encoder = load_dreambooth_lora(unet, vae, text_encoder, f"{personalized_model_root}/{args.personalized_model_path}",
                                                            blending_alpha=args.blending_alpha, multiplier=args.multiplier)
         else:
             unet = UNet2DConditionModel.from_pretrained_orig(personalized_model_root, subfolder=f"{args.personalized_model_path}") # unet_disney
@@ -89,7 +90,7 @@ def load_pasd_pipeline(args, accelerator, enable_xformers_memory_efficient_atten
 
     # Get the validation pipeline
     validation_pipeline = StableDiffusionControlNetPipeline(
-        vae=vae, text_encoder=text_encoder, tokenizer=tokenizer, feature_extractor=feature_extractor, 
+        vae=vae, text_encoder=text_encoder, tokenizer=tokenizer, feature_extractor=feature_extractor,
         unet=unet, controlnet=controlnet, scheduler=scheduler, safety_checker=None, requires_safety_checker=False,
     )
     #validation_pipeline.enable_vae_tiling()
@@ -97,7 +98,7 @@ def load_pasd_pipeline(args, accelerator, enable_xformers_memory_efficient_atten
 
     if args.use_lcm_lora:
         # load and fuse lcm lora
-        validation_pipeline.load_lora_weights(args.lcm_lora_path)
+        trace_load(validation_pipeline.load_lora_weights, args.lcm_lora_path)
         validation_pipeline.fuse_lora()
         validation_pipeline.scheduler = LCMScheduler.from_config(validation_pipeline.scheduler.config)
 
@@ -122,14 +123,14 @@ def load_high_level_net(args, device='cuda'):
             return model, vis_processors, None
         else:
             #import open_clip
-            model, _, transform = open_clip.create_model_and_transforms(
+            model, _, transform = trace_load(open_clip.create_model_and_transforms,
                 model_name="coca_ViT-L-14",
                 pretrained="mscoco_finetuned_laion2B-s13B-b90k"
                 )
             return model, transform, None
     else:
         return None, None, None
-    
+
 def get_validation_prompt(args, image, model, preprocess, category, device='cuda'):
     validation_prompt = ""
 
@@ -148,7 +149,7 @@ def get_validation_prompt(args, image, model, preprocess, category, device='cuda
         count = {}
         for cls, conf in zip(clses, confs):
             name = names[cls]
-            if name in count: 
+            if name in count:
                 count[name] += 1
             else:
                 count[name] = 1
@@ -170,7 +171,7 @@ def get_validation_prompt(args, image, model, preprocess, category, device='cuda
             validation_prompt = caption if args.prompt=="" else f"{caption} {args.prompt}"
     else:
         validation_prompt = "" if args.prompt=="" else f"{args.prompt}, "
-    
+
     return validation_prompt
 
 
@@ -187,18 +188,12 @@ def count_layer(base_dir):
 
 
 # Blackwell uses the existing PyTorch SDPA path; xformers 0.0.31 selects incompatible Hopper FA3.
-def main(args, enable_xformers_memory_efficient_attention=False,):
-    
-    
-    num_layer  = count_layer(args.inputs_dir)
-    
+def load_models(args, enable_xformers_memory_efficient_attention=False):
     accelerator = Accelerator(
         mixed_precision=args.mixed_precision,
     )
 
     # If passed along, set the training seed now.
-    if args.seed is not None:
-        set_seed(args.seed)
 
 
     # We need to initialize the trackers we use, and also store our configuration.
@@ -209,12 +204,25 @@ def main(args, enable_xformers_memory_efficient_attention=False,):
     pipeline = load_pasd_pipeline(args, accelerator, enable_xformers_memory_efficient_attention)
     model, preprocess, category = load_high_level_net(args, accelerator.device)
 
+    return accelerator, pipeline, model, preprocess, category
+
+def main(args, enable_xformers_memory_efficient_attention=False, resident=None):
+
+
+    num_layer  = count_layer(args.inputs_dir)
+
+    if args.seed is not None:
+        set_seed(args.seed)
+    if resident is None:
+        resident = load_models(args, enable_xformers_memory_efficient_attention)
+    accelerator, pipeline, model, preprocess, category = resident
+
     resize_preproc = transforms.Compose([
         transforms.Resize(args.process_size, interpolation=transforms.InterpolationMode.BILINEAR),
     ] if args.control_type=="realisr" else [
         transforms.Resize(args.process_size, max_size=args.process_size*2, interpolation=transforms.InterpolationMode.BILINEAR),
     ])
-                
+
     if accelerator.is_main_process:
         generator = torch.Generator(device=accelerator.device)
         if args.seed is not None:
@@ -229,22 +237,22 @@ def main(args, enable_xformers_memory_efficient_attention=False,):
         print(f"base_dir:{base_dir}")
         image_names = []
         for i in range(num_layer):
-            
+
 
             image_path = f"{base_dir}/layer{i}/layer{i}_inpaint.png"
             image_names.append(image_path)
-        
+
         image_names.append(f"{base_dir}/rgb.png")
 
         index = 0
         for image_name in image_names[:]:
-            
+
             validation_image = Image.open(image_name).convert("RGB")
             #validation_image = Image.new(mode='RGB', size=validation_image.size, color=(0,0,0))
             if args.control_type == "realisr":
                 validation_prompt = get_validation_prompt(args, validation_image, model, preprocess, category)
                 validation_prompt += args.added_prompt # clean, extremely detailed, best quality, sharp, clean
-                negative_prompt = args.negative_prompt #dirty, messy, low quality, frames, deformed, 
+                negative_prompt = args.negative_prompt #dirty, messy, low quality, frames, deformed,
             elif args.control_type == "grayscale":
                 validation_image = validation_image.convert("L").convert("RGB")
                 orig_img = validation_image.copy()
@@ -253,7 +261,10 @@ def main(args, enable_xformers_memory_efficient_attention=False,):
                 negative_prompt = "b&w, color bleeding"
             else:
                 raise NotImplementedError
-            
+
+            from scripts.curated_runtime import save_json
+            save_json(image_name + ".pasd-prompt.json", dict(prompt=validation_prompt, negative_prompt=negative_prompt))
+
             ori_width, ori_height = validation_image.size
             resize_flag = False
             rscale = args.upscale if args.control_type=="realisr" else 1
@@ -283,16 +294,16 @@ def main(args, enable_xformers_memory_efficient_attention=False,):
             #     print(e)
             #     continue
 
-            if args.control_type=="realisr": 
+            if args.control_type=="realisr":
                 if True: #args.conditioning_scale < 1.0:
                     image = wavelet_color_fix(image, validation_image)
 
-                if resize_flag: 
+                if resize_flag:
                     image = image.resize((ori_width*rscale, ori_height*rscale))
 
             name, ext = os.path.splitext(os.path.basename(image_name))
             if args.control_type=='grayscale':
-                
+
                 np_image = np.asarray(image)[:,:,::-1]
                 color_np = cv2.resize(np_image, orig_img.size)
                 orig_np = np.asarray(orig_img)
@@ -320,7 +331,7 @@ def main(args, enable_xformers_memory_efficient_attention=False,):
 
             index = index + 1
 
-if __name__ == "__main__":
+def build_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrained_model_path", type=str, default="checkpoints/pasd/stable-diffusion-v1-5", help="path of base SD model")
     parser.add_argument("--lcm_lora_path", type=str, default="checkpoints/pasd/lcm-lora-sdv1-5", help="path of LCM lora model")
@@ -331,7 +342,6 @@ if __name__ == "__main__":
     parser.add_argument("--prompt", type=str, default="", help="prompt for image generation")
     parser.add_argument("--added_prompt", type=str, default="clean, high-resolution, 8k", help="additional prompt")
     parser.add_argument("--negative_prompt", type=str, default="blurry, dotted, noise, raster lines, unclear, lowres, over-smoothed", help="negative prompt")
-
     parser.add_argument("--inputs_dir", type=str, default="outputs_nature_inpaint", help="layerdata dir")
     parser.add_argument("--mixed_precision", type=str, default="fp16", help="mixed precision mode") # no/fp16/bf16
     parser.add_argument("--guidance_scale", type=float, default=9.0, help="classifier-free guidance scale")
@@ -353,5 +363,7 @@ if __name__ == "__main__":
     parser.add_argument("--added_noise_level", type=int, default=900, help="additional noise level")
     parser.add_argument("--offset_noise_scale", type=float, default=0.0, help="offset noise scale, not used")
     parser.add_argument("--seed", type=int, default=None, help="seed")
-    args = parser.parse_args()
-    main(args)
+    return parser
+
+if __name__ == "__main__":
+    main(build_parser().parse_args())

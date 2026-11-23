@@ -1,5 +1,5 @@
 import os
-import sys 
+import sys
 import cv2
 import numpy as np
 import argparse
@@ -12,8 +12,8 @@ from utils.trajectory import gcd_pose_gs
 import utils.pano_utils.Equirec2Perspec as E2P
 import utils.pano_utils.multi_Perspec2Equirec as m_P2E
 python_src_dir = os.path.dirname(os.path.abspath(__file__))
-print(f"Adding '{python_src_dir}' to sys.path") 
-sys.path.append(python_src_dir + "/submodules/360monodepth/code/python/src/") 
+print(f"Adding '{python_src_dir}' to sys.path")
+sys.path.append(python_src_dir + "/submodules/360monodepth/code/python/src/")
 
 from utility import depthmap_utils, pointcloud_utils
 from utils.depth_alignment import depth_alignment, Pano_depth_estimation
@@ -35,14 +35,14 @@ class Gen_panodepth:
         try:
             with open(file_path, 'r') as file:
                 for line in file:
-                    path = line.strip() 
-                    if path:  
+                    path = line.strip()
+                    if path:
                         rgbpath_list.append(path)
         except FileNotFoundError:
             print(f"file {file_path} not found")
         except Exception as e:
             print(f"error in reading: {e}")
-        
+
         return rgbpath_list
 
     def readImg(self, path):
@@ -51,12 +51,12 @@ class Gen_panodepth:
         return img
 
     def generate_panodepth(self, pano_rgb):
-        ####### pano_rgb        [pano_h,pano_w,3] [0-255]        
+        ####### pano_rgb        [pano_h,pano_w,3] [0-255]
         pano_h, pano_w = pano_rgb.shape[0], pano_rgb.shape[1]
         panodepth_estimator = Pano_depth_estimation(pano_h, pano_w, self.save_dir, self.device, depth_model=self.depth_model)
-        pano_depth = panodepth_estimator.get_panodepth(pano_rgb)  #[0-1] 
+        pano_depth = panodepth_estimator.get_panodepth(pano_rgb)  #[0-1]
 
-        return pano_depth  
+        return pano_depth
 
 
     def run(self):
@@ -71,7 +71,7 @@ class Gen_panodepth:
         for i in range(N):
             pano_rgb = self.readImg(pano_rgb_path[i])
             pano_depth = self.generate_panodepth(pano_rgb)
-            
+
             if N==1:
                 save_dir_now = f"{self.save_dir}/layering"
             else:
@@ -88,24 +88,27 @@ class Gen_panodepth:
             rgb_pil = Image.fromarray(pano_rgb)
             rgb_pil.save(rgb_path)
 
-            
+
             pano_depth = (pano_depth -  pano_depth.min()) / (pano_depth.max() - pano_depth.min())
-            
+
             depth = (pano_depth * max_val).astype(np.uint16)
             depth_pil = Image.fromarray(depth)
             depth_pil.save(depth_path)
 
 
 
-parser = argparse.ArgumentParser(description='Arguments for PanoScene4D')
-parser.add_argument('--depth_model', type=str, default="DepthAnythingv2")
-parser.add_argument('--save_dir', type=str, default="outputs")
-parser.add_argument('--input_path', type=str, default='outputs/rgb.png') 
+def run_sample(args):
+    depth_model = args.depth_model
+    save_dir = args.save_dir
+    input_path = args.input_path
 
-args = parser.parse_args()
-depth_model = args.depth_model
-save_dir = args.save_dir
-input_path = args.input_path
+    gen_panodepth = Gen_panodepth(depth_model = depth_model,save_dir=save_dir, input_path=input_path)
+    gen_panodepth.run() #DepthAnythingv2, zoedepth
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Arguments for PanoScene4D')
+    parser.add_argument('--depth_model', type=str, default="DepthAnythingv2")
+    parser.add_argument('--save_dir', type=str, default="outputs")
+    parser.add_argument('--input_path', type=str, default='outputs/rgb.png')
 
-gen_panodepth = Gen_panodepth(depth_model = depth_model,save_dir=save_dir, input_path=input_path)
-gen_panodepth.run() #DepthAnythingv2, zoedepth
+    args = parser.parse_args()
+    run_sample(args)

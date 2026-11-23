@@ -27,8 +27,8 @@ def main():
     env.update(CUDA_VISIBLE_DEVICES='',PYTHONDONTWRITEBYTECODE='1',HF_HUB_OFFLINE='1',TRANSFORMERS_OFFLINE='1',OMP_NUM_THREADS='4',OPENBLAS_NUM_THREADS='4',TMPDIR=str(root/'evidence/tmp'))
     Path(env['TMPDIR']).mkdir(exist_ok=True)
     tests=[]
-    for name,script in [('cpu-orchestration','tests/test_curated_two.py'),('cpu-native-imports','tests/import_curated_native_cpu.py')]:
-        command=[sys.executable,'-u',script]
+    for name,script in [('cpu-orchestration','tests/test_curated_two.py'),('cpu-native-imports','tests/import_curated_native_cpu.py'),('legacy-pasd-cli-help','pasd/run_layers_pasd.py')]:
+        command=[sys.executable,'-u',script]+(['--help'] if name=='legacy-pasd-cli-help' else [])
         stamp=utc(); t=time.perf_counter()
         log=root/'evidence'/f'{name}.log'
         with log.open('w') as out:
@@ -43,8 +43,11 @@ def main():
             if not count or int(count[1])<16 or not re.search(r'^OK\s*$',text,re.MULTILINE):
                 raise RuntimeError('CPU test success/count evidence not found')
             tests[-1]['tests_passed']=int(count[1])
-        elif '"cuda_context_initialized": false' not in text or '"status": "PASS"' not in text:
-            raise RuntimeError('Real native CPU import success evidence not found')
+        elif name=='cpu-native-imports':
+            if '"cuda_context_initialized": false' not in text or '"status": "PASS"' not in text:
+                raise RuntimeError('Real native CPU import success evidence not found')
+        elif '--num_inference_steps' not in text or '--upscale' not in text:
+            raise RuntimeError('Native PASD CLI help options not found')
     # Recheck after tests; code/settings cannot change between tested and published identity.
     check_identity(root)
     preparation=dict(start_utc=started,end_utc=utc(),elapsed_seconds=time.perf_counter()-start,kind='CPU readiness tests only, not inference or full developer effort',tests=tests)

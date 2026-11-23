@@ -27,5 +27,15 @@ with mock.patch.object(audit,'trace_load',side_effect=AssertionError('unexpected
     assert not (args.use_pasd_light or args.use_lcm_lora or args.use_personalized_model)
     result['pasd/run_layers_pasd.py']='IMPORTED_WITH_ZERO_MODEL_LOADS'
 assert not torch.cuda.is_initialized()
+from utils.loss import nearMean_map
+for height,width in [(3,5),(7,4)]:
+    source=torch.arange(height*width,dtype=torch.float32).reshape(height,width)
+    mask=(source.remainder(3)!=0).float()
+    kernel=torch.tensor([[0.,1.,0.],[1.,0.,1.],[0.,1.,0.]]).reshape(1,1,3,3)
+    expected=torch.nn.functional.conv2d((source*mask)[None,None],kernel,padding=1)
+    counts=torch.nn.functional.conv2d(mask[None,None],kernel,padding=1)
+    expected=(expected/(counts+1e-8)).squeeze()
+    assert torch.equal(nearMean_map(source,mask),expected)
+result['lazy_fixed_kernel']='CPU_NUMERIC_PARITY_PASS'
 result.update(torch=torch.__version__,cuda_context_initialized=False,status='PASS')
 print(json.dumps(result,indent=2))

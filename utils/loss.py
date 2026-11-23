@@ -88,11 +88,12 @@ with torch.no_grad():
     conv.weight.data = kernel #torch.ones((1,1,kernelsize,kernelsize))
     conv.bias.data = torch.tensor([0.])
     conv.requires_grad_(False)
-    conv = conv.cuda()
+    # Fixed analytic kernel stays on CPU until first use; importing is GPU-free.
 
 
 def nearMean_map(array, mask, kernelsize=3):
     """ array: (H,W) / mask: (H,W) """
+    conv.to(device=array.device)
     cnt_map = torch.ones_like(array)
 
     nearMean_map = conv((array * mask)[None,None])

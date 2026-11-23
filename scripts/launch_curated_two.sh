@@ -19,6 +19,6 @@ if tmux has-session -t "$session" 2>/dev/null; then
 fi
 python scripts/curated_two.py --root "$root" --gate
 # Driver rechecks GPU idleness itself; no claim that the preceding snapshot reserves a GPU.
-tmux new-session -d -s "$session" -c "$repo" "bash '$repo/scripts/curated_tmux_entry.sh' '$root'"
+tmux new-session -d -s "$session" -c "$repo" "bash '$repo/scripts/curated_tmux_entry.sh' '$root'" 9>&-
 tmux list-panes -t "$session" -F 'session=#{session_name} pane_pid=#{pane_pid} command=#{pane_current_command}'
 printf 'Created %s. Exact driver PID: %s/evidence/driver.PID; log: %s/evidence/driver.log\n' "$session" "$root" "$root"

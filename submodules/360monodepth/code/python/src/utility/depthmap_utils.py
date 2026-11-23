@@ -911,7 +911,7 @@ def depthmap_pyramid(depthmap_list, pyramid_layer_number, pyramid_downscale):
             depthmap_pryamid[0][index] = depthmap_list[index].astype(np.float64)
         else:
             depthmap = depthmap_list[index]
-            pyramid = tuple(pyramid_gaussian(depthmap, max_layer=pyramid_layer_number - 1, downscale=pyramid_downscale, multichannel=False))
+            pyramid = tuple(pyramid_gaussian(depthmap, max_layer=pyramid_layer_number - 1, downscale=pyramid_downscale, channel_axis=None))
             for layer_index in range(0, pyramid_layer_number):
                 depthmap_pryamid[pyramid_layer_number - layer_index - 1][index] = pyramid[layer_index].astype(np.float64)
 

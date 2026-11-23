@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <cstdint>  // std::uintptr_t and fixed-width integer types (CUDA 12.8 / GCC 13).
 #include <iostream>
 #include <vector>
 #include "rasterizer.h"

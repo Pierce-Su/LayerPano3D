@@ -40,86 +40,33 @@ Accepted by SIGGRAPH 2025
 ### ✨ Updates:
 [2025-07-23] 🔥 Release our 360 Panorama dataset Upright360, please check and download it on [**Huggingface Dataset**](https://huggingface.co/datasets/ysmikey/Layerpano3D_PanoData).
 
-### 🔧 Installation:
-- Prepare Environment
-```sh
-conda create -n layerpano3d python==3.9
-conda activate layerpano3d
-pip install -r requirements.txt
-pip install timm==0.4.12 --no-deps
-pip install xformers==0.0.27.post2 --index-url https://download.pytorch.org/whl/cu118
-pip install -e submodules/diff-gaussian-rasterization
-pip install -e submodules/simple-knn
-```
-```
-# # git+https://github.com/facebookresearch/segment-anything.git
-# mmcv
-# -f https://shi-labs.com/natten/wheels/cu118/torch2.4.0/index.html
-# natten==0.14.4
+### 🔧 Installation (Blackwell / S3063)
 
-```
+For RTX PRO 6000 Blackwell (SM 12.0), use the maintained
+[Blackwell installation guide](docs/INSTALL-BLACKWELL.md).
+The previous Python 3.9 / Torch 2.4 CUDA 11.8 recipe is **not** compatible with this GPU.
 
-- Install `PyTorch`. We have tested on `torch2.4.0+cu118`, but other versions should also work fine.
-```sh
-pip install torch==2.4.0 torchvision==0.19.0  --index-url https://download.pytorch.org/whl/cu118
+```bash
+source /opt/miniforge/etc/profile.d/conda.sh
+conda env create --file environment-blackwell.yml
+conda activate layerpano3d-blackwell
+export TMPDIR=/mnt/NAS/pierce/.workstation/S3063/tmp/layerpano3d-rebuild-01
+mkdir -p "$TMPDIR"
+export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 GLOG_log_dir="$TMPDIR"
+python -m pip install torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cu128
+python -m pip install -r requirements.txt
+python -m pip check
+bash scripts/build_native.sh
+HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 python scripts/smoke_blackwell.py
 ```
 
-
-
-- Install `360monodepth`. This might be tricky. Do it step by step. Ask in Issue if you have any problems.
-```sh
-#Important step here
-Modify `submodules/360monodepth/code/cpp/CMakeConfig.txt` Line 65, Change the path of numpy to your own.
-```
-
-```sh
-sudo apt-get install libgtest-dev libeigen3-dev libboost-all-dev libopencv-dev libatlas-base-dev
-sudo apt-get install liblapack-dev libsuitesparse-dev libcxsparse3 libgflags-dev libgoogle-glog-dev libgtest-dev
-conda install -c conda-forge libstdcxx-ng=12  
-
-# pybind11
-cd submodules/360monodepth/code/cpp/3rd_party
-git clone https://github.com/pybind/pybind11.git 
-cd pybind11 && mkdir build && cd build
-cmake .. && make -j8 
-sudo make install
-cd ../../ 
-
-# ceres-solver
-
-git clone -b 1.14.0 https://github.com/ceres-solver/ceres-solver
-
-
-The dependency of Ceres, the TBB library, includes version information in the `tbb_stddef.h` file, which was removed starting from TBB version 2021.1. The `version.h` file in the same directory contains similar content. Replacing `tbb_stddef.h` with `version.h` in line 224 of the `FindTBB.cmake` file allows the compilation to proceed successfully.
-
-
-mkdir build && cd build
-
-cmake .. -DCMAKE_BUILD_TYPE=Release \
-         -DBUILD_TESTING=OFF \
-         -DBUILD_EXAMPLES=OFF \
-         -DEIGENSPARSE=ON \
-         -DSUITESPARSE=OFF \
-         -DCXSPARSE=ON \
-         -DGFLAGS=ON
-
-#You don't need Ceres' tests—just turn them off by setting BUILD_TESTING=OFF.
-#This is the quickest and most stable fix, and it won’t affect any later steps in LayerPano3D.
-
-
-cmake .. && make -j8 
-sudo make install 
-cd ../../../  
-
-# instaOmniDepth
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release  ..
-make -j8 
-cd ../python
-python setup.py build
-python setup.py bdist_wheel 
-pip install dist/instaOmniDepth-0.1.0-cp39-cp39-linux_x86_64.whl # if failed, please check your file version in dist/
-```
+No sudo, driver changes, shared-base installs, or prebuilt CUDA 11.8 extensions.
+The native build retains the project's custom four-output Gaussian rasterizer and
+360monodepth Ceres implementation; all compiler/dependency paths come from the
+activated environment. See the guide for exact environment prefix, source build,
+lock inventories, tests, evidence and missing model assets. A passing environment
+smoke is not an end-to-end pretrained-generation result. The historical dependency
+list is archived in `requirements-legacy-cu118.txt`, not used by current installs.
 
 - **Checkpoints Download**: 
   - Download the Panorama LoRA [checkpoint](https://huggingface.co/ysmikey/Layerpano3D-FLUX-Panorama-LoRA/resolve/main/lora_hubs/pano_lora_720*1440_v1.safetensors?download=true) and put it in the ``checkpoints`` folder. We will release more powerful and better panorama_lora_v2.safetensors() in the future, now version-1 is avaliable in [huggingface](https://huggingface.co/ysmikey/Layerpano3D-FLUX-Panorama-LoRA).

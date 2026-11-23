@@ -1,0 +1,6 @@
+# Keep the CUDA ABI fixed when resolving application dependencies.
+torch==2.7.1+cu128
+torchvision==0.22.1+cu128
+# xformers intentionally excluded: 0.0.31 dispatches FP16 to an incompatible Hopper FA3 kernel on SM120.
+numpy==1.26.4
+setuptools==75.8.2

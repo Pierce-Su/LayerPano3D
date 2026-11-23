@@ -11,6 +11,7 @@
 
 #define BOX_SIZE 1024
 
+#include <cfloat>  // FLT_MAX must not depend on transitive CUDA/CUB includes.
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "simple_knn.h"

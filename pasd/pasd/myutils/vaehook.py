@@ -363,7 +363,7 @@ def attn2task(task_queue, net):
     else:
         task_queue.append(('store_res', lambda x: x))
         task_queue.append(('pre_norm', net.group_norm))
-        if is_xformers_available:
+        if is_xformers_available():
             task_queue.append(('attn', lambda x, net=net: attn_forward_new_xformers(net, x)))
         elif hasattr(F, "scaled_dot_product_attention"):
             task_queue.append(('attn', lambda x, net=net: attn_forward_new_pt2_0(net, x)))

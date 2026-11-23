@@ -186,7 +186,8 @@ def count_layer(base_dir):
     return count
 
 
-def main(args, enable_xformers_memory_efficient_attention=True,):
+# Blackwell uses the existing PyTorch SDPA path; xformers 0.0.31 selects incompatible Hopper FA3.
+def main(args, enable_xformers_memory_efficient_attention=False,):
     
     
     num_layer  = count_layer(args.inputs_dir)

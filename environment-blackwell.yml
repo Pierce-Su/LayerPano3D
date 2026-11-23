@@ -1,0 +1,22 @@
+name: layerpano3d-blackwell
+channels:
+  - conda-forge
+  - nvidia/label/cuda-12.8.1
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pip=25.0
+  - setuptools=75.8
+  - wheel
+  - numpy=1.26.4
+  - cmake=3.31
+  - ninja
+  - gcc_linux-64=13
+  - gxx_linux-64=13
+  - cuda-toolkit=12.8
+  - ceres-solver=2.1
+  - eigen=3.4.0
+  - pybind11=2.13
+  - boost-cpp
+  - libopencv
+  - gtest

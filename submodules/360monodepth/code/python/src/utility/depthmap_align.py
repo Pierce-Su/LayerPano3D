@@ -91,6 +91,8 @@ class DepthmapAlign:
         depthmapAlign.init(self.align_method)
         # clear the alignment run time, call depthmapAlign.shutdown when the interpreter exits
         import atexit
+        # The native binding owns a single process-wide glog lifetime.
+        atexit.unregister(depthmapAlign.shutdown)
         atexit.register(depthmapAlign.shutdown)
 
         # the global configuration

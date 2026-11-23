@@ -5,6 +5,7 @@ os.environ.setdefault('TRANSFORMERS_OFFLINE', '1')
 os.environ.setdefault('MPLBACKEND', 'Agg')
 os.environ.setdefault('OMP_NUM_THREADS', '4')
 import sys
+sys.dont_write_bytecode = True
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))

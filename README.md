@@ -52,6 +52,7 @@ conda env create --file environment-blackwell.yml
 conda activate layerpano3d-blackwell
 export TMPDIR=/mnt/NAS/pierce/.workstation/S3063/tmp/layerpano3d-rebuild-01
 mkdir -p "$TMPDIR"
+export PYTHONDONTWRITEBYTECODE=1
 export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4 GLOG_log_dir="$TMPDIR"
 python -m pip install torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cu128
 python -m pip install -r requirements.txt

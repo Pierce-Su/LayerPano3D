@@ -42,6 +42,29 @@ are not all synonyms for a complete neural network. Scene-specific PLY loads
 cannot be shared between distinct scenes and are logged separately. Failed
 attempts/reloads are preserved, not hidden behind an assertion of globally-once.
 
+## Runtime compatibility evidence (2026-11-23)
+
+Both shell layers disable nounset only during Conda activation, then restore it.
+Entry PID/log/EXIT trap are installed before activation. Native FLUX LoRA loading
+passes the exact local basename as `weight_name`: installed Diffusers offline
+mode otherwise rejects even an existing local file. Both adapters retain the
+same checkpoint bytes and quality settings. The CPU test asserts this argument.
+
+OneFormer also requires the small dataset metadata file, beyond its model cache:
+`shi-labs/oneformer_demo`, dataset revision
+`4d683bd5bf84e9c8b5537dce306230bde409fe89`, `coco_panoptic.json` (5849 bytes),
+SHA256 `2aab920e13f27c2846ad0a66568e8533fe049f4f0523d174ea8e944fa9ad84ae`.
+A CPU-only online `AutoProcessor.from_pretrained` populated this native dependency;
+then the same call passed with both offline flags set and CUDA uninitialized.
+The run records the exact NAS cache path/hash in
+`evidence/oneformer-dataset-metadata.json`. No model substitution was made.
+
+Failed attempts remain in append-only logs/events and archived FAILED/EXIT
+markers. Runtime code migrations are explicit audit records; the initial
+BATCH_STARTED clock is retained. Verified reference panoramas are resumed, not
+regenerated after a missing metadata dependency. Do not infer visual quality or
+complete 3D success from a successful reference panorama.
+
 ## CPU preparation and tests (no GPU permission needed)
 
 From the activated `layerpano3d-blackwell` environment in the repository:
@@ -67,10 +90,16 @@ exit 0 and the identity is rechecked. READY contains exact launch/resume argv,
 identity digest, test log hashes, output root, lock, tmux, PID and log paths.
 The preparation command never launches inference or creates a monitoring cron.
 
-## Sole GPU launch owner: Assistant
+## Coordinated GPU launch ownership
 
-Do not launch from Developer. Assistant's existing single ten-minute monitor is
-responsible for checking READY, the actual GPU compute-process list, and launch:
+PM transferred the sole runtime repair/launch ownership to Developer at
+2026-11-23 22:48 +08:00 after an early shell activation failure. Assistant must
+not compete for launch; its existing monitor must check completion/failure and
+trigger Developer acceptance. The legacy CLI `--owner assistant` and original
+READY `launch_owner` are compatibility tokens, not a second execution owner;
+`actual_execution_owner` and the explicit migration evidence identify Developer.
+The current run is `/mnt/NAS/E3DQA_project/assets/LayerPano3D/curated_two_t_b7a371cb_final`.
+Launch/resume remains:
 
     bash scripts/launch_curated_two.sh /mnt/NAS/E3DQA_project/assets/LayerPano3D/RUN_ID
 

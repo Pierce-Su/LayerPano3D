@@ -123,3 +123,7 @@ Original repo checkpoint inventory had no .pth/.ckpt/.safetensors/.bin weights. 
 No pretrained end-to-end generation, full-resolution peak-memory/performance, alternate ZoeDepth/BoostingMonocularDepth branches, nested DINO tensors or desktop/GUI rendering is verified. Conda emitted an unused librsvg/gdk-pixbuf post-link warning; headless required operations passed.
 No shared base, driver, system installation, reboot, other jobs or existing weights were modified.
 Native wheels/build scratch retained under personal NAS tmp/layerpano3d-stage3 and tmp/layerpano3d-final.
+
+## Subsequent asset preparation (not a revision of the original tests)
+
+The original no-weight/no-pretrained-inference statements above describe installation-time evidence. Core assets were subsequently downloaded and verified; native-default SR assets and CPU loader/caption tests are recorded in [PASD-SR-S3063.md](PASD-SR-S3063.md). No successful GPU SR fixture or end-to-end run.sh is claimed.

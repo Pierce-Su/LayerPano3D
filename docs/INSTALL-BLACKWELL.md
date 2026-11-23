@@ -147,3 +147,7 @@ from this commit; a raw pip freeze contains machine-local wheel paths and is an
 inventory, not a portable build command. Do not copy binaries from another GPU ABI.
 Keep bulk logs/caches on NAS, not in Vault. See the verified report alongside this
 manual for actual test commands, exit codes, package versions and remaining risks.
+
+## Subsequent pretrained SR preparation
+
+The missing-weight inventory above records the initial installation boundary, not current asset status. Core downloads and native-default PASD SR assets are now prepared. See [PASD SR on S3063](PASD-SR-S3063.md) for exact revisions, licenses, safe resume commands, actual CPU loader/caption verification, and GPU-busy refusal logs. MajicMix, LCM and ResNet are conditional branches, not required by unmodified run.sh. GPU SR and full run.sh remain unverified.

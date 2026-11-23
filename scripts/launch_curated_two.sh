@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Only Assistant owns GPU launch; this script creates no cron/monitor loop.
+# Launch ownership is coordinated on the task; this creates no monitor loop.
 set -Eeuo pipefail
 root=${1:?Usage: bash scripts/launch_curated_two.sh ABSOLUTE_RUN_ROOT}
 [[ "$root" =~ ^/mnt/NAS/E3DQA_project/assets/LayerPano3D/[A-Za-z0-9_.-]+$ ]] || { printf 'Unexpected output root\n' >&2; exit 64; }
+mkdir -p "$root/evidence"
+exec > >(tee -a "$root/evidence/launcher.log") 2>&1
+trap 'status=$?; printf "launcher exit=%s at %s\n" "$status" "$(date --iso-8601=seconds)" >> "$root/evidence/launcher-exits.log"' EXIT
 repo=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# Activation hooks are not nounset-safe; restore strict mode after activation.
+set +u
 source /opt/miniforge/etc/profile.d/conda.sh
 conda activate layerpano3d-blackwell
+set -u
 cd "$repo"
 export PYTHONDONTWRITEBYTECODE=1 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1
 export OMP_NUM_THREADS=4 OPENBLAS_NUM_THREADS=4
